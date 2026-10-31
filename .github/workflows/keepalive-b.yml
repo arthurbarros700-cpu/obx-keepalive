@@ -1,0 +1,38 @@
+name: keepalive-secondary
+on:
+  schedule:
+    - cron: "5,15,25,35,45,55 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: obx-keepalive-secondary
+  cancel-in-progress: false
+
+jobs:
+  pulse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - name: Pulso continuo 24/7 (Ciclo B defasado +5min)
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://obsidian-store-pro.onrender.com' }}
+        run: |
+          echo "Monitorando $SITE_URL/health (4 pulsos a cada 180s)"
+          ok_any=0
+          for pulse in 1 2 3 4; do
+            for try in 1 2 3; do
+              body=$(curl -sS -m 55 -H "User-Agent: ObsidianCloudMesh-B/2.0" -H "Cache-Control: no-cache" -w "\nHTTP_CODE:%{http_code}" "$SITE_URL/health?src=gh-b" || true)
+              code=$(echo "$body" | sed -n 's/^HTTP_CODE://p')
+              payload=$(echo "$body" | grep -v '^HTTP_CODE:' | tr '\n' ' ')
+              echo "[$(date -u '+%H:%M:%S UTC')] pulso=$pulse tentativa=$try HTTP=$code payload=$payload"
+              if [ "$code" = "200" ]; then
+                ok_any=1
+                break
+              fi
+              sleep 15
+            done
+            if [ "$pulse" -lt 4 ]; then
+              sleep 180
+            fi
+          done
+          [ "$ok_any" = "1" ] && exit 0 || exit 1

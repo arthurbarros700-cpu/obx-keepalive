@@ -1,22 +1,38 @@
-name: keepalive
+name: keepalive-primary
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0,10,20,30,40,50 * * * *"
   workflow_dispatch:
+
+concurrency:
+  group: obx-keepalive-primary
+  cancel-in-progress: false
+
 jobs:
-  ping:
+  pulse:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 14
     steps:
-      - name: Acorda e confere o site
+      - name: Pulso continuo 24/7 (Ciclo A)
         env:
-          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://obsidian-store-pro.onrender.com' }}
         run: |
-          if [ -z "$SITE_URL" ]; then echo "SITE_URL ainda nao definido"; exit 0; fi
-          for i in 1 2 3; do
-            code=$(curl -s -o /dev/null -m 60 -w "%{http_code}" "$SITE_URL/health" || true)
-            echo "tentativa $i: HTTP $code"
-            [ "$code" = "200" ] && exit 0
-            sleep 20
+          echo "Monitorando $SITE_URL/health (4 pulsos a cada 180s)"
+          ok_any=0
+          for pulse in 1 2 3 4; do
+            for try in 1 2 3; do
+              body=$(curl -sS -m 55 -H "User-Agent: ObsidianCloudMesh-A/2.0" -H "Cache-Control: no-cache" -w "\nHTTP_CODE:%{http_code}" "$SITE_URL/health?src=gh-a" || true)
+              code=$(echo "$body" | sed -n 's/^HTTP_CODE://p')
+              payload=$(echo "$body" | grep -v '^HTTP_CODE:' | tr '\n' ' ')
+              echo "[$(date -u '+%H:%M:%S UTC')] pulso=$pulse tentativa=$try HTTP=$code payload=$payload"
+              if [ "$code" = "200" ]; then
+                ok_any=1
+                break
+              fi
+              sleep 15
+            done
+            if [ "$pulse" -lt 4 ]; then
+              sleep 180
+            fi
           done
-          exit 1
+          [ "$ok_any" = "1" ] && exit 0 || exit 1
