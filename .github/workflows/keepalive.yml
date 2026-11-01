@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: Pulso continuo 24/7 (Ciclo A)
         env:
-          SITE_URL: ${{ vars.SITE_URL || 'https://obsidian-store-pro.onrender.com' }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://obsidianstore.discloud.dev' }}
         run: |
           echo "Monitorando $SITE_URL/health (4 pulsos a cada 180s)"
           ok_any=0
